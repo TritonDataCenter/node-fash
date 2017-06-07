@@ -1,3 +1,13 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
+ * Copyright (c) 2017, Joyent, Inc.
+ */
+
 var fash = require('../lib');
 var fs = require('fs');
 var Logger = require('bunyan');
@@ -9,14 +19,17 @@ var LOG = new Logger({
     level: process.env.LOG_LEVEL || 'warn'
 });
 
-var DB_LOCATION = process.env.DB_LOCATION || '/tmp/fash-db';
-var FASH_BACKEND = process.env.FASH_BACKEND || fash.BACKEND.LEVEL_DB;
 var LVL_CFG = {
     createIfMissing: true,
-    errorIfExists: false,
+    errorIfExists: true,
     compression: false,
-    cacheSize: 800 * 1024 * 1024
+    cacheSize: 800 * 1024 * 1024,
+    keyEncoding: 'utf8',
+    valueEncoding: 'json'
 };
+
+var DB_LOCATION = process.env.DB_LOCATION || '/tmp/fash-db';
+var FASH_BACKEND = process.env.FASH_BACKEND || fash.BACKEND.LEVEL_DB;
 
 var RING = fash.load({
     log: LOG,
@@ -28,19 +41,6 @@ var RING = fash.load({
         throw new verror.VError(err, 'unable to load ring from disk');
     }
 });
-
-//console.log('loading ring into memory');
-//var RING = fash.deserialize({
-    //log: LOG,
-    //topology: fs.readFileSync(DB_LOCATION, 'utf-8'),
-    //backend: fash.BACKEND.IN_MEMORY,
-//}, function (err) {
-    //if (err) {
-        //throw new verror.VError(err, 'unable to load ring from disk');
-    //}
-
-    //console.log('ring loaded');
-//});
 
 var server = restify.createServer();
 server.use(restify.bodyParser());
