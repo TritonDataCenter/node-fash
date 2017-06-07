@@ -16,7 +16,7 @@ fash provides the ability to add, remove, or remap physical nodes on the ring
 Fash consists of a mapping of a set of fixed virtual nodes (vnodes) -- usually
 a large number, say 1000000 -- distributed across the hash ring. It is then
 possible to map these virtual nodes to a set of physical nodes (pnodes).  In
-practice, pnodes are usuall physical shards or servers in a distributed system.
+practice, pnodes are usually physical shards or servers in a distributed system.
 This gives the flexibility of mutating the hashspace of pnodes and the number
 of pnodes by re-mapping the vnode assignments.
 
@@ -50,6 +50,13 @@ To select a backend, simply pass in a backend object like so to fash.create();
     }, function(err, chash) {
         console.log('chash created');
     });
+```
+
+Or from, the command line:
+
+```
+./bin/fash.js create -v 1000000 -b leveldb -l {filepath/to/hash_ring} -p '{pnodename}''
+
 ```
 
 # Example
@@ -88,9 +95,9 @@ the remapNode() function, which returns an optional callback.
 
 You can also remove pnodes from the ring, but **you must first rebalance the
 ring by reassigning its vnodes to other pnodes** via remapVnode(). Then you can
-invoke removeNode(), which will eturn an optional callback.
+invoke removeNode(), which will return an optional callback.
 
-You can assign an arbitrary number of vnodes to the new vnode -- also -- the
+You can assign an arbitrary number of vnodes to the new pnode -- also -- the
 pnode can be a new node, or an existing one.  Again, as long as the order of
 removes and remaps is consistent across all clients, the ring toplogy will be
 consistent as well.
@@ -123,10 +130,11 @@ consistent as well.
 
 ## Adding More Pnodes to the Ring
 You can add additional pnodes to the ring after fash has been initialized by
-invoking remapVnode(). which optionally returns a callback. Note, adding the
-callback will cause fash to create a new copy of the ring topology across each
-invocation -- do not do this if you have millions of vnodes, as this is quite
-slow.
+invoking remapVnode(), which optionally returns a callback. Note that adding
+the callback will cause fash to create a new copy of the ring topology across
+each invocation -- do not do this if you have millions of vnodes, as this is
+quite slow and may consume all available memory, bringing the operation to a
+standstill and locking up other resources.
 
     var fash = require('fash');
     var Logger = require('bunyan');
@@ -256,22 +264,13 @@ mentioned in the earlier bootstrapping section.
 
 That's it, chash and chash2 now contain the same ring toplogy.
 
-Copyright (c) 2013 Yunong Xiao
+## Running Tests
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
+Just run `make test`, first exporting the `DB_LOCATION` variable for the load
+test file to give it the location of your hash ring.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Copyright (c) 2017, Joyent, Inc.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.

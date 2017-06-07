@@ -1,3 +1,13 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
+ * Copyright (c) 2017, Joyent, Inc.
+ */
+
 var bignum = require('bignum');
 var crypto = require('crypto');
 var common = require('../lib/common');
@@ -25,7 +35,8 @@ var NUMBER_OF_VNODES = parseInt(process.env.NUMBER_OF_VNODES || 100);
 var NUMBER_OF_PNODES = parseInt(process.env.NUMBER_OF_PNODES || 10);
 var PNODES = new Array(NUMBER_OF_PNODES);
 var PNODE_STRING = '\'';
-var ALGORITHM = ['sha256', 'sha1', 'md5'];
+var ALGORITHM = [process.env.npm_package_config_leveldb_test_algorithm] ||
+    ['sha256', 'sha1', 'md5'];
 
 exports.beforeTest = function (t) {
     for (var i = 0; i < NUMBER_OF_PNODES; i++) {
@@ -507,6 +518,93 @@ _testAllConstructors(function addDataBackToNull(algo, constructor, t) {
         function verify(_, cb) {
             _verifyRing(_.hLevel, _.hInMem, t, algo, cb);
         },
+    ], arg: {}}, function (err) {
+        if (err) {
+            t.fail(err);
+        }
+        t.done();
+    });
+});
+
+_testAllConstructors(function getVnodePnodeAndData(algo, constructor, t) {
+    vasync.pipeline({funcs: [
+        function newRing(_, cb) {
+            constructor(algo, function (err, hLevel) {
+                _.hLevel = hLevel;
+                return cb(err);
+            });
+        },
+        function pickVnode(_, cb) {
+            _.key = uuid.v4();
+            _.hLevel.getNode(_.key, function (err, node) {
+                _.node = node;
+                return cb(err);
+            });
+        },
+        function getVnodePnodeAndData(_, cb) {
+            _.hLevel.getVnodePnodeAndData(_.node.vnode,
+                function (err, pnode, vnodeData) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    t.strictEqual(pnode, _.node.pnode,
+                        'pnode output does not match');
+                    t.strictEqual(vnodeData, _.node.data,
+                        'data output does not match');
+                    return cb();
+                });
+        },
+    ], arg: {}}, function (err) {
+        if (err) {
+            t.fail(err);
+        }
+        t.done();
+    });
+});
+
+_testAllConstructors(function getVnodePnodeAndDataReadOnly(algo, constructor, t)
+{
+    vasync.pipeline({funcs: [
+        function newRing(_, cb) {
+            constructor(algo, function (err, hLevel) {
+                _.hLevel = hLevel;
+                return cb(err);
+            });
+        },
+        function pickVnode(_, cb) {
+            _.key = uuid.v4();
+            _.hLevel.getNode(_.key, function (err, node) {
+                _.node = node;
+                return cb(err);
+            });
+        },
+        function addData(_, cb) {
+            _.hLevel.addData(_.node.vnode, 'ro', cb);
+        },
+        function getNode(_, cb) {
+            _.hLevel.getNode(_.key, function (err, node) {
+                if (err) {
+                    return cb(err);
+                }
+                t.strictEqual(node.data, 'ro',
+                              'stored data should match put data');
+                _.node.data = node.data;
+                return cb();
+            });
+        },
+        function getVnodePnodeAndData(_, cb) {
+            _.hLevel.getVnodePnodeAndData(_.node.vnode,
+                function (err, pnode, vnodeData) {
+                    if (err) {
+                        return cb(err);
+                    }
+                    t.strictEqual(pnode, _.node.pnode,
+                        'pnode output does not match');
+                    t.strictEqual(vnodeData, _.node.data,
+                        'data output does not match');
+                    return cb();
+                });
+        }
     ], arg: {}}, function (err) {
         if (err) {
             t.fail(err);

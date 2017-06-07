@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 
-/**
- * Copyright (c) 2013, Yunong J Xiao. All rights reserved.
- *
- * fash.js: CLI tool for node-fash
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+/*
+ * Copyright (c) 2017, Joyent, Inc.
  */
 
 var bunyan = require('bunyan');
 var cmdln = require('cmdln');
+var common = require('../lib/common');
 var fash = require('../lib/index');
 var fs = require('fs');
 var sprintf = require('util').format;
@@ -50,13 +55,16 @@ Fash.prototype.do_create = function (subcmd, opts, args, callback) {
         });
     }
 
-    var pnodes = opts.p.split(' ');
+    var pnodes = opts.p.split(/[, ]+/);
+    var pnodeArray = [];
+
     for (var i = 0; i < pnodes.length; i++) {
-        var p = pnodes[i];
-        if (!p || p === '') {
-            pnodes.splice(i, 1);
+        if (!pnodes[i] || pnodes[i] === '' || pnodes[i] === ',') {
+            continue;
         }
+        pnodeArray.push(pnodes[i]);
     }
+
     switch (opts.b) {
         case BACKENDS.IN_MEMORY:
             opts.b = fash.BACKEND.IN_MEMORY;
@@ -71,7 +79,7 @@ Fash.prototype.do_create = function (subcmd, opts, args, callback) {
     fash.create({
         log: self.log,
         algorithm: opts.a || 'sha256',
-        pnodes: pnodes,
+        pnodes: pnodeArray,
         vnodes: opts.v,
         backend: opts.b,
         location: opts.l
@@ -193,8 +201,8 @@ Fash.prototype.do_deserialize_ring.help = (
     'load a hash ring into leveldb. Accepts input over stdin or via a file.\n'
     + '\n'
     + 'usage:\n'
-    + '     fash deserialize_ring [options] \n'
-    + '     cat /tmp/example_ring.json | fash deserialize_ring [options] \n'
+    + '     fash deserialize-ring [options] \n'
+    + '     cat /tmp/example_ring.json | fash deserialize-ring [options] \n'
     + '\n'
     + '{{options}}'
 );
@@ -260,24 +268,22 @@ Fash.prototype.do_add_data = function (subcmd, opts, args, callback) {
         function loadRing(_, cb) {
             hash = constructor(hashOptions, cb);
         },
+        function getVnodeArray(_, cb) {
+            var vnodes = common.parseIntArray(opts.v);
+            _.vnodes = vnodes;
+            return cb();
+        },
         function addData(_, cb) {
             var count = 0;
-            var vnodes = opts.v.split(' ');
-            for (var i = 0; i < vnodes.length; i++) {
-                var v = vnodes[i];
-                if (!v || v === '') {
-                    vnodes.splice(i, 1);
-                }
-            }
-            hash.addData(parseInt(vnodes[count], 10), opts.d, addDataCb);
+            hash.addData(parseInt(_.vnodes[count], 10), opts.d, addDataCb);
             function addDataCb(err) {
                 if (err) {
                     return cb(err);
                 }
-                if (++count === vnodes.length) {
+                if (++count === _.vnodes.length) {
                     return cb();
                 } else {
-                    hash.addData(parseInt(vnodes[count], 10),
+                    hash.addData(parseInt(_.vnodes[count], 10),
                                  opts.d, addDataCb);
                 }
                 return (undefined);
@@ -285,16 +291,20 @@ Fash.prototype.do_add_data = function (subcmd, opts, args, callback) {
             return (undefined);
         },
         function printRing(_, cb) {
-            hash.serialize(function (_err, sh) {
-                if (_err) {
-                    return cb(new verror.VError(_err,
-                                                'unable to print hash'));
-                }
-                if (opts.o) {
-                    console.log(sh);
-                }
+            if (opts.o) {
+                hash.serialize(function (_err, sh) {
+                    if (_err) {
+                        return cb(new verror.VError(_err,
+                                                    'unable to print hash'));
+                    }
+                    if (opts.o) {
+                        console.log(sh);
+                    }
+                    return cb();
+                });
+            } else {
                 return cb();
-            });
+            }
         }
     ], arg: {}}, function (err) {
         if (err) {
@@ -304,6 +314,7 @@ Fash.prototype.do_add_data = function (subcmd, opts, args, callback) {
     });
     return (undefined);
 };
+
 Fash.prototype.do_add_data.options = [ {
     names: [ 'v', 'vnode' ],
     type: 'string',
@@ -321,17 +332,18 @@ Fash.prototype.do_add_data.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'o', 'output' ],
     type: 'bool',
-    help: 'serialize and print out the resulting hash to stdout'
+    help: 'serialize and print out the resulting hash to stdout \n' +
+          'WARNING: may consume a large quantity of memory.'
 }];
 Fash.prototype.do_add_data.help = (
     'add data to a vnode.\n'
     + '\n'
     + 'usage:\n'
-    + '     fash add_data [options] \n'
+    + '     fash add-data [options] \n'
     + '\n'
     + '{{options}}'
 );
@@ -397,40 +409,42 @@ Fash.prototype.do_remap_vnode = function (subcmd, opts, args, callback) {
         function loadRing(_, cb) {
             hash = constructor(hashOptions, cb);
         },
+        function getVnodeArray(_, cb) {
+            var vnodes = common.parseIntArray(opts.v);
+            _.vnodes = vnodes;
+            return cb();
+        },
         function remap(_, cb) {
             var count = 0;
-            var vnodes = opts.v.split(' ');
-            for (var i = 0; i < vnodes.length; i++) {
-                var v = vnodes[i];
-                if (!v || v === '') {
-                    vnodes.splice(i, 1);
-                }
-            }
-            hash.remapVnode(opts.p, parseInt(vnodes[count], 10), remapCb);
+            hash.remapVnode(opts.p, parseInt(_.vnodes[count], 10), remapCb);
             function remapCb(err) {
                 if (err) {
                     return cb(err);
                 }
-                if (++count === vnodes.length) {
+                if (++count === _.vnodes.length) {
                     return cb();
                 } else {
-                    hash.remapVnode(opts.p, parseInt(vnodes[count], 10),
+                    hash.remapVnode(opts.p, parseInt(_.vnodes[count], 10),
                                     remapCb);
                 }
                 return (undefined);
             }
         },
         function printRing(_, cb) {
-            hash.serialize(function (_err, sh) {
-                if (_err) {
-                    return cb(new verror.VError(_err,
-                                                'unable to print hash'));
-                }
-                if (opts.o) {
-                    console.log(sh);
-                }
+            if (opts.o) {
+                hash.serialize(function (_err, sh) {
+                    if (_err) {
+                        return cb(new verror.VError(_err,
+                                                    'unable to print hash'));
+                    }
+                    if (opts.o) {
+                        console.log(sh);
+                    }
+                    return cb();
+                });
+            } else {
                 return cb();
-            });
+            }
         }
     ], arg: {}}, function (err) {
         if (err) {
@@ -457,17 +471,18 @@ Fash.prototype.do_remap_vnode.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'o', 'output' ],
     type: 'bool',
-    help: 'serialize and print out the resulting hash to stdout'
+    help: 'serialize and print out the resulting hash to stdout \n' +
+          'WARNING: may consume a large quantity of memory.'
 }];
 Fash.prototype.do_remap_vnode.help = (
     'remap a vnode to a different pnode.\n'
     + '\n'
     + 'usage:\n'
-    + '     fash remap_vnode [options] \n'
+    + '     fash remap-vnode [options] \n'
     + '\n'
     + '{{options}}'
 );
@@ -537,15 +552,20 @@ Fash.prototype.do_remove_pnode = function (subcmd, opts, args, callback) {
             hash.removePnode(opts.p, cb);
         },
         function printRing(_, cb) {
-            hash.serialize(function (_err, sh) {
-                if (_err) {
-                    return cb(new verror.VError(_err, 'unable to print hash'));
-                }
-                if (opts.o) {
-                    console.log(sh);
-                }
+            if (opts.o) {
+                hash.serialize(function (_err, sh) {
+                    if (_err) {
+                        return cb(new verror.VError(_err,
+                            'unable to print hash'));
+                    }
+                    if (opts.o) {
+                        console.log(sh);
+                    }
+                    return cb();
+                });
+            } else {
                 return cb();
-            });
+            }
         }
     ], arg: {}}, function (err) {
         if (err) {
@@ -561,7 +581,7 @@ Fash.prototype.do_remove_pnode.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'p', 'pnode' ],
     type: 'string',
@@ -579,7 +599,7 @@ Fash.prototype.do_remove_pnode.help = (
     'remove a pnode'
     + '\n'
     + 'usage:\n'
-    + '     fash remove_pnode [options] \n'
+    + '     fash remove-pnode [options] \n'
     + '\n'
     + '{{options}}'
 );
@@ -668,7 +688,7 @@ Fash.prototype.do_get_pnodes.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'b', 'backend' ],
     type: 'string',
@@ -678,7 +698,7 @@ Fash.prototype.do_get_pnodes.help = (
     'get all the pnodes in the ring'
     + '\n'
     + 'usage:\n'
-    + '     fash get_pnodes [options]\n'
+    + '     fash get-pnodes [options]\n'
     + '\n'
     + '{{options}}'
 );
@@ -767,7 +787,7 @@ Fash.prototype.do_get_vnodes.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'b', 'backend' ],
     type: 'string',
@@ -777,13 +797,108 @@ Fash.prototype.do_get_vnodes.help = (
     'get the vnodes owned by a pnode'
     + '\n'
     + 'usage:\n'
-    + '     fash get_vnodes [options] pnode\n'
+    + '     fash get-vnodes [options] pnode\n'
+    + '\n'
+    + '{{options}}'
+);
+
+Fash.prototype.do_get_vnode_pnode_and_data =
+    function (subcmd, opts, args, callback) {
+        var self = this;
+
+        if (opts.help || !opts.v) {
+            this.do_help('help', {}, [subcmd], function (err) {
+                return callback(err ? err : true);
+            });
+        }
+
+        var hashOptions = {
+            log: self.log
+        };
+        var hash;
+        var constructor;
+
+        vasync.pipeline({funcs: [
+            function prepInput(_, cb) {
+                if (!opts.l) {
+                    console.error('leveldb backend requires a location');
+                    self.do_help('help', {}, [subcmd], function (err) {
+                        return callback(err ? err : true);
+                    });
+                } else {
+                    hashOptions.location = opts.l;
+                    return cb();
+                }
+                return (undefined);
+            },
+            function loadRing(_, cb) {
+                // We choose not to support an IN_MEMORY backend.
+                hashOptions.backend = fash.BACKEND.LEVEL_DB;
+                constructor = fash.load;
+                hash = constructor(hashOptions, cb);
+            },
+            function getVnodeArray(_, cb) {
+                var vnodes = common.parseIntArray(opts.v);
+                _.vnodes = vnodes;
+                return cb();
+            },
+            function getVnodePnodeAndData(_, cb) {
+                var dataHash = {};
+                function getResults(input, _cb) {
+                    hash.getVnodePnodeAndData(input,
+                        function (err, pnode, vnodeData) {
+                        if (err) {
+                            return _cb(verror.VError(err,
+                                'unable to get pnode and data for for vnode ',
+                                input));
+                        }
+                        dataHash[input] = {};
+                        dataHash[input]['pnode'] = pnode;
+                        dataHash[input]['vnodeData'] = vnodeData;
+                        return _cb(err, null);
+                    });
+                }
+
+                vasync.forEachPipeline({
+                    'inputs': _.vnodes,
+                    'func': getResults
+                }, function (err) {
+                    if (err) {
+                        return console.error(new verror.VError(err,
+                            'unable to construct hash for vnode '));
+                    }
+                    console.log('vnodes: ', dataHash);
+                });
+            }
+        ], arg: {}}, function (err) {
+            if (err)
+                console.error(new verror.VError(err));
+        });
+
+        return (undefined);
+};
+Fash.prototype.do_get_vnode_pnode_and_data.options = [ {
+    names: [ 'v', 'vnodes' ],
+    type: 'string',
+    help: 'the vnode(s) to inspect'
+}, {
+    names: [ 'l', 'location' ],
+    type: 'string',
+    help: 'the location of the topology, assuming a leveldb backend, \n' +
+          'this is the path to the leveldb on disk.'
+}];
+Fash.prototype.do_get_vnode_pnode_and_data.help = (
+    'get the data and pnode(s) associated with a set of vnodes'
+    + '\n'
+    + 'usage:\n'
+    + '     fash get-vnode-pnode-and-data [options]\n'
     + '\n'
     + '{{options}}'
 );
 
 Fash.prototype.do_get_node = function (subcmd, opts, args, callback) {
     var self = this;
+
     if (opts.help || !opts.b || args.length !== 1) {
         this.do_help('help', {}, [subcmd], function (err) {
             return callback(err ? err : true);
@@ -865,7 +980,7 @@ Fash.prototype.do_get_node.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'b', 'backend' ],
     type: 'string',
@@ -875,7 +990,7 @@ Fash.prototype.do_get_node.help = (
     'hash a value to its spot on the ring'
     + '\n'
     + 'usage:\n'
-    + '     fash get_node [options] value\n'
+    + '     fash get-node [options] value\n'
     + '\n'
     + '{{options}}'
 );
@@ -964,17 +1079,17 @@ Fash.prototype.do_print_hash.options = [ {
     type: 'string',
     help: 'the location of the topology, if using the in_memory backend, \n' +
           'this is the location of the serialized ring on disk, if using \n ' +
-          'the leveldb backend, this is the path to the levedb on disk.'
+          'the leveldb backend, this is the path to the leveldb on disk.'
 }, {
     names: [ 'b', 'backend' ],
     type: 'string',
     help: 'the backend to use'
 }];
 Fash.prototype.do_print_hash.help = (
-    'print out the hash ring'
+    'print out the hash ring, WARNING: may consume a large quantity of memory.'
     + '\n'
     + 'usage:\n'
-    + '     fash print_hash [options] value\n'
+    + '     fash print-hash [options] value\n'
     + '\n'
     + '{{options}}'
 );
@@ -1219,6 +1334,7 @@ Fash.prototype.do_diff.help = (
 var cli = new Fash();
 cli.main(process.argv, function (err, subcmd) {
     if (err) {
+        console.error(err);
         process.exit(1);
     } else {
         process.exit(0);
