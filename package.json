@@ -59,12 +59,5 @@
   },
   "bin": {
     "fash": "bin/fash.js"
-  },
-  "config": {
-    "leveldb_test_algorithm": "sha256"
-  },
-  "scripts": {
-    "pretest": "./lint.sh",
-    "test": "./node_modules/.bin/nodeunit test/*.test.js"
   }
 }

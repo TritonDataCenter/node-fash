@@ -35,7 +35,7 @@ var NUMBER_OF_VNODES = parseInt(process.env.NUMBER_OF_VNODES || 100);
 var NUMBER_OF_PNODES = parseInt(process.env.NUMBER_OF_PNODES || 10);
 var PNODES = new Array(NUMBER_OF_PNODES);
 var PNODE_STRING = '\'';
-var ALGORITHM = [process.env.npm_package_config_leveldb_test_algorithm] ||
+var ALGORITHM = [process.env.LEVELDB_TEST_ALGORITHM] ||
     ['sha256', 'sha1', 'md5'];
 
 exports.beforeTest = function (t) {
