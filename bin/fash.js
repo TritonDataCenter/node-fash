@@ -585,7 +585,7 @@ Fash.prototype.do_remove_pnode.options = [ {
 }, {
     names: [ 'p', 'pnode' ],
     type: 'string',
-    help: 'the pnode to remap the vnode(s) to'
+    help: 'the pnode being removed'
 }, {
     names: [ 'b', 'backend' ],
     type: 'string',
@@ -806,83 +806,67 @@ Fash.prototype.do_get_vnode_pnode_and_data =
     function (subcmd, opts, args, callback) {
     var self = this;
 
-    if (opts.help || !opts.v) {
+    if (opts.help || !opts.v || !opts.location) {
         this.do_help('help', {}, [subcmd], function (err) {
-            return callback(err ? err : true);
+            callback(err ? err : true);
+            return;
         });
     }
 
     var hashOptions = {
-        log: self.log
+        log: self.log,
+        location: opts.location,
+        // We choose not to support an IN_MEMORY backend.
+        backend: fash.BACKEND.LEVEL_DB
     };
+    var constructor = fash.load;
     var hash;
-    var constructor;
 
     vasync.pipeline({funcs: [
-        function prepInput(_, cb) {
-            if (!opts.l) {
-                console.error('leveldb backend requires a location');
-                self.do_help('help', {}, [subcmd], function (err) {
-                    return callback(err ? err : true);
-                });
-            } else {
-                hashOptions.location = opts.l;
-                return cb();
-            }
-            return (undefined);
-        },
         function loadRing(_, cb) {
-            // We choose not to support an IN_MEMORY backend.
-            hashOptions.backend = fash.BACKEND.LEVEL_DB;
-            constructor = fash.load;
             hash = constructor(hashOptions, cb);
         },
         function getVnodeArray(_, cb) {
             var vnodes = common.parseIntArray(opts.v);
             _.vnodes = vnodes;
-            return cb();
+            cb();
         },
         function getVnodePnodeAndData(_, cb) {
-            var dataHash = {};
-            function getResults(input, _cb) {
-                hash.getVnodePnodeAndData(input,
+            _.dataHash = {};
+            function getResults(vnode, _cb) {
+                hash.getVnodePnodeAndData(vnode,
                     function (err, pnode, vnodeData) {
                     if (err) {
-                        return _cb(verror.VError(err,
-                            'unable to get pnode and data for for vnode ',
-                            input));
+                        _cb(new verror.VError(err, 'unable to ' +
+                            'get pnode and data for for vnode %s',
+                            vnode));
+                        return;
                     }
-                    dataHash[input] = {};
-                    dataHash[input]['pnode'] = pnode;
-                    dataHash[input]['vnodeData'] = vnodeData;
-                    return _cb(err, null);
+                    _.dataHash[vnode] = {
+                        'pnode': pnode,
+                        'vnodeData': vnodeData
+                    };
+                    _cb();
                 });
             }
 
             vasync.forEachPipeline({
                 'inputs': _.vnodes,
                 'func': getResults
-            }, function (err) {
-                if (err) {
-                    return console.error(new verror.VError(err,
-                        'unable to construct hash for vnode '));
-                }
-                console.log('vnodes: ', dataHash);
-            });
+            }, cb);
+        },
+        function printVnodePnodeAndData(_, cb) {
+            console.log('vnodes: ', _.dataHash);
+            cb();
         }
-    ], arg: {}}, function (err) {
-        if (err)
-            console.error(new verror.VError(err));
-    });
-
-    return (undefined);
+    ], arg: {}}, callback);
 };
 Fash.prototype.do_get_vnode_pnode_and_data.options = [ {
     names: [ 'v', 'vnodes' ],
     type: 'string',
     help: 'the vnode(s) to inspect'
 }, {
-    names: [ 'l', 'location' ],
+    names: [ 'location', 'l' ],
     type: 'string',
     help: 'the location of the topology, assuming a leveldb backend, \n' +
           'this is the path to the leveldb on disk.'
@@ -894,6 +878,103 @@ Fash.prototype.do_get_vnode_pnode_and_data.help = (
     + '     fash get-vnode-pnode-and-data [options]\n'
     + '\n'
     + '{{options}}'
+);
+
+/*
+ * This returns vnodes that contain non-default data i.e. 'ro'
+ * But, importantly, if data other than 'ro' is set, vnodes that
+ * contain that data will also be returned in the vnodeArray.
+ */
+Fash.prototype.do_get_data_vnodes = function (subcmd, opts, args, callback) {
+    var self = this;
+
+    if (opts.help || !opts.location) {
+        this.do_help('help', {}, [subcmd], function (err) {
+            callback(err ? err : true);
+            return;
+        });
+    }
+
+    var hashOptions = {
+        log: self.log,
+        location: opts.location,
+        // We choose not to support an IN_MEMORY backend.
+        backend: fash.BACKEND.LEVEL_DB
+    };
+    var constructor = fash.load;
+    var hash;
+
+    vasync.pipeline({funcs: [
+        function loadRing(_, cb) {
+            hash = constructor(hashOptions, cb);
+        },
+        function getDataVnodes(_, cb) {
+            hash.getDataVnodes(function (err, vnodeArray) {
+                if (err) {
+                    cb(verror.VError(err,
+                        'unable to get vnode(s) for data'));
+                    return;
+                }
+                _.vnodeArray = vnodeArray;
+                cb();
+            });
+        },
+        function ifVerboseGetDataHash(_, cb) {
+            if (!opts.v) {
+                cb();
+                return;
+            } else {
+                _.dataHash = {};
+                function getResults(vnode, _cb) {
+                    hash.getVnodePnodeAndData(vnode,
+                        function (err, pnode, vnodeData) {
+                        if (err) {
+                            _cb(new verror.VError(err, 'unable to ' +
+                                'get pnode and data for for vnode %s',
+                                vnode));
+                            return;
+                        }
+                        _.dataHash[vnode] = {
+                            'pnode': pnode,
+                            'vnodeData': vnodeData
+                        };
+                        _cb();
+                    });
+                }
+
+                vasync.forEachPipeline({
+                    'inputs': _.vnodeArray,
+                    'func': getResults
+                }, cb);
+            }
+        },
+        function printDataVnodes(_, cb) {
+            console.log('vnodeArray: ', _.vnodeArray);
+            if (opts.v) {
+                console.log('vnodes: ', _.dataHash);
+            }
+            cb();
+        }
+    ], arg: {}}, callback);
+};
+Fash.prototype.do_get_data_vnodes.options = [ {
+    names: [ 'v', 'verbose' ],
+    type: 'bool',
+    help: 'print pnode and data associated with each vnode that has data'
+}, {
+    names: [ 'location', 'l' ],
+    type: 'string',
+    help: 'the location of the topology, if using the in_memory backend, \n' +
+          'this is the location of the serialized ring on disk, if using \n ' +
+          'the leveldb backend, this is the path to the leveldb on disk.'
+}];
+Fash.prototype.do_get_data_vnodes.help = (
+    'get the vnode(s) that hold optional data' +
+    '\n' +
+    'usage:\n' +
+    '     fash get-data-vnodes [options]\n' +
+    '\n' +
+    '{{options}}'
 );
 
 Fash.prototype.do_get_node = function (subcmd, opts, args, callback) {

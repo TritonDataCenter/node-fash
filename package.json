@@ -8,6 +8,10 @@
     {
       "name": "Fred Kuo",
       "email": "deepevil@gmail.com"
+    },
+    {
+      "name": "Brittany Wald",
+      "email": "brittany.wald@joyent.com"
     }
   ],
   "name": "fash",
@@ -21,7 +25,7 @@
     "dynamo",
     "hash ring"
   ],
-  "version": "2.4.0",
+  "version": "2.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/yunong/node-fash.git"
