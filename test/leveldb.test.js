@@ -603,38 +603,89 @@ _testAllConstructors(function addDataBackToNull(algo, constructor, t) {
     });
 });
 
-_testAllConstructors(function getVnodePnodeAndData(algo, constructor, t) {
+_testAllConstructors(function getDataVnodes(algo, constructor, t) {
     vasync.pipeline({funcs: [
         function newRing(_, cb) {
             constructor(algo, function (err, hLevel) {
                 _.hLevel = hLevel;
-                return cb(err);
+                cb(err);
             });
         },
         function pickVnode(_, cb) {
             _.key = uuid.v4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
-                return cb(err);
+                cb(err);
+            });
+        },
+        function getDataVnodes(_, cb) {
+            _.hLevel.getDataVnodes(function (err, vnodeArray) {
+                if (err) {
+                    cb(err);
+                    return;
+                }
+                t.strictEqual(vnodeArray.length, 0,
+                    'vnodeArray should have zero elements');
+                cb();
+            });
+        },
+        function addData(_, cb) {
+            _.hLevel.addData(_.node.vnode, 'foo', cb);
+        },
+        function getDataVnodes(_, cb) {
+            _.hLevel.getDataVnodes(function (err, vnodeArray) {
+                if (err) {
+                    cb(err);
+                    return;
+                }
+                t.strictEqual(vnodeArray.length, 1,
+                    'vnodeArray should have one element');
+                t.strictEqual(vnodeArray[0], _.node.vnode,
+                    'vnodeArray should contain vnode ' +
+                    _.node.vnode);
+
+                cb();
+            });
+        },
+    ], arg: {}}, function (err) {
+        t.ifError(err, 'all steps should succeed');
+        t.done();
+    });
+});
+
+_testAllConstructors(function getVnodePnodeAndData(algo, constructor, t) {
+    vasync.pipeline({funcs: [
+        function newRing(_, cb) {
+            constructor(algo, function (err, hLevel) {
+                _.hLevel = hLevel;
+                cb(err);
+                return;
+            });
+        },
+        function pickVnode(_, cb) {
+            _.key = uuid.v4();
+            _.hLevel.getNode(_.key, function (err, node) {
+                _.node = node;
+                cb(err);
+                return;
             });
         },
         function getVnodePnodeAndData(_, cb) {
             _.hLevel.getVnodePnodeAndData(_.node.vnode,
                 function (err, pnode, vnodeData) {
                     if (err) {
-                        return cb(err);
+                        cb(err);
+                        return;
                     }
                     t.strictEqual(pnode, _.node.pnode,
                         'pnode output does not match');
                     t.strictEqual(vnodeData, _.node.data,
                         'data output does not match');
-                    return cb();
+                    cb();
                 });
         },
     ], arg: {}}, function (err) {
-        if (err) {
-            t.fail(err);
-        }
+        t.ifError(err, 'all steps should succeed');
         t.done();
     });
 });
@@ -717,9 +768,7 @@ _testAllConstructors(function getVnodePnodeAndDataReadOnly(algo, constructor, t)
                 });
         }
     ], arg: {}}, function (err) {
-        if (err) {
-            t.fail(err);
-        }
+        t.ifError(err, 'all steps should succeed');
         t.done();
     });
 });
