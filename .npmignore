@@ -1,2 +1,6 @@
+deps
 node_modules
-
+test
+tools
+.gitmodules
+Makefile
