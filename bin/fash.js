@@ -210,7 +210,7 @@ Fash.prototype.do_deserialize_ring.help = (
 Fash.prototype.do_add_data = function (subcmd, opts, args, callback) {
     var self = this;
 
-    if (opts.help || args.length !== 0 || !opts.v || !opts.d || !opts.b) {
+    if (opts.help || args.length !== 0 || !opts.v || !opts.b) {
         this.do_help('help', {}, [subcmd], function (err) {
             return callback(err ? err : true);
         });
