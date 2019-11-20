@@ -983,7 +983,7 @@ _testAllAlgorithms(function collision(algo, t) {
         pnodes: ['a', 'a'],
         vnodes: NUMBER_OF_VNODES,
         backend: fash.BACKEND.LEVEL_DB,
-        location: '/tmp/' + uuid.v4()
+        location: '/var/tmp/' + uuid.v4()
     }, function (err) {
         t.ok(err, 'identical pnodes should throw');
         t.done();
@@ -1205,7 +1205,7 @@ function _newRing(algo, cb) {
         pnodes: PNODES,
         vnodes: NUMBER_OF_VNODES,
         backend: fash.BACKEND.LEVEL_DB,
-        location: '/tmp/' + uuid.v4()
+        location: '/var/tmp/' + uuid.v4()
     }, function (err) {
         if (err) {
             return cb(err);
@@ -1227,7 +1227,7 @@ function _newRing(algo, cb) {
 
 function _newRingFromDb(algo, callback) {
     var h1, h2;
-    var location = '/tmp/' + uuid.v4();
+    var location = '/var/tmp/' + uuid.v4();
     vasync.pipeline({funcs: [
         // create the ring using a cli in another process so that we can use it
         // in this process.
@@ -1304,7 +1304,7 @@ function _newRingFromTopology(algo, cb) {
                 log: LOG,
                 topology: _.topology,
                 backend: fash.BACKEND.LEVEL_DB,
-                location: '/tmp/' + uuid.v4()
+                location: '/var/tmp/' + uuid.v4()
             }, function (err) {
                 return cb(err);
             });

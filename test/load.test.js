@@ -28,7 +28,7 @@ var LVL_CFG = {
     valueEncoding: 'json'
 };
 
-var DB_LOCATION = process.env.DB_LOCATION || '/tmp/fash-db';
+var DB_LOCATION = process.env.DB_LOCATION || '/var/tmp/fash-db';
 var FASH_BACKEND = process.env.FASH_BACKEND || fash.BACKEND.LEVEL_DB;
 
 var RING = fash.load({
