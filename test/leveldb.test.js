@@ -5,21 +5,20 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
-var bignum = require('bignum');
-var crypto = require('crypto');
-var common = require('../lib/common');
 var exec = require('child_process').exec;
 var fash = require('../lib');
 var leveldb = require('../lib/backend/leveldb');
 var Logger = require('bunyan');
 var lodash = require('lodash');
 var once = require('once');
+var os = require('os');
+var path = require('path');
 var sprintf = require('util').format;
 var util = require('util');
-var uuid = require('node-uuid');
+var uuidv4 = require('uuid/v4');
 var vasync = require('vasync');
 var verror = require('verror');
 
@@ -35,8 +34,13 @@ var NUMBER_OF_VNODES = parseInt(process.env.NUMBER_OF_VNODES || 100);
 var NUMBER_OF_PNODES = parseInt(process.env.NUMBER_OF_PNODES || 10);
 var PNODES = new Array(NUMBER_OF_PNODES);
 var PNODE_STRING = '\'';
-var ALGORITHM = [process.env.LEVELDB_TEST_ALGORITHM] ||
-    ['sha256', 'sha1', 'md5'];
+var ALGORITHM = ['sha256', 'sha1', 'md5'];
+
+if (process.env.LEVELDB_TEST_ALGORITHM) {
+    ALGORITHM = [process.env.LEVELDB_TEST_ALGORITHM];
+}
+
+var TMP_DIR = os.tmpdir();
 
 exports.beforeTest = function (t) {
     for (var i = 0; i < NUMBER_OF_PNODES; i++) {
@@ -470,7 +474,7 @@ _testAllConstructors(function addData(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -557,7 +561,7 @@ _testAllConstructors(function addDataBackToNull(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -612,7 +616,7 @@ _testAllConstructors(function getDataVnodes(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 cb(err);
@@ -663,7 +667,7 @@ _testAllConstructors(function getVnodePnodeAndData(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 cb(err);
@@ -734,7 +738,7 @@ _testAllConstructors(function getVnodePnodeAndDataReadOnly(algo, constructor, t)
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -786,7 +790,7 @@ _testAllConstructors(function addDataRemapVnodeToDifferentPnode(algo,
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -881,7 +885,7 @@ _testAllConstructors(function addDataRemapVnodeToNewPnode(algo, constructor,
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -983,7 +987,7 @@ _testAllAlgorithms(function collision(algo, t) {
         pnodes: ['a', 'a'],
         vnodes: NUMBER_OF_VNODES,
         backend: fash.BACKEND.LEVEL_DB,
-        location: '/tmp/' + uuid.v4()
+        location: path.join(TMP_DIR, uuidv4())
     }, function (err) {
         t.ok(err, 'identical pnodes should throw');
         t.done();
@@ -1024,7 +1028,7 @@ _testAllConstructors(function remapVnodeToTheSamePnode(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -1077,7 +1081,7 @@ _testAllConstructors(function removeNonEmptyPnode(algo, constructor, t) {
             });
         },
         function pickVnode(_, cb) {
-            _.key = uuid.v4();
+            _.key = uuidv4();
             _.hLevel.getNode(_.key, function (err, node) {
                 _.node = node;
                 return cb(err);
@@ -1205,7 +1209,7 @@ function _newRing(algo, cb) {
         pnodes: PNODES,
         vnodes: NUMBER_OF_VNODES,
         backend: fash.BACKEND.LEVEL_DB,
-        location: '/tmp/' + uuid.v4()
+        location: path.join(TMP_DIR, uuidv4())
     }, function (err) {
         if (err) {
             return cb(err);
@@ -1227,7 +1231,7 @@ function _newRing(algo, cb) {
 
 function _newRingFromDb(algo, callback) {
     var h1, h2;
-    var location = '/tmp/' + uuid.v4();
+    var location = path.join(TMP_DIR, uuidv4());
     vasync.pipeline({funcs: [
         // create the ring using a cli in another process so that we can use it
         // in this process.
@@ -1304,7 +1308,7 @@ function _newRingFromTopology(algo, cb) {
                 log: LOG,
                 topology: _.topology,
                 backend: fash.BACKEND.LEVEL_DB,
-                location: '/tmp/' + uuid.v4()
+                location: path.join(TMP_DIR, uuidv4())
             }, function (err) {
                 return cb(err);
             });

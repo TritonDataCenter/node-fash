@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 var bignum = require('bignum');
@@ -14,7 +14,7 @@ var common = require('../lib/common');
 var fash = require('../lib');
 var Logger = require('bunyan');
 var util = require('util');
-var uuid = require('node-uuid');
+var uuid = require('uuid/v4');
 
 var LOG = new Logger({
     name: 'consistent-hash-test',
@@ -581,7 +581,7 @@ _testAllAlgorithms(function remove_non_existent_pnode_should_throw(algo, t) {
         backend: fash.BACKEND.IN_MEMORY
     });
     try {
-        chash.removePnode(uuid.v4());
+        chash.removePnode(uuidv4());
     } catch (e) {
         caught = true;
     }
