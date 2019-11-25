@@ -58,7 +58,6 @@ exports.beforeTest = function (t) {
 };
 
 _testAllConstructors(function newRing(algo, constructor, t) {
-    console.log(algo);
     constructor(algo, function (err, hLevel, hInMem) {
         if (err) {
             t.fail(err);
