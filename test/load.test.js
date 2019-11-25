@@ -5,12 +5,13 @@
  */
 
 /*
- * Copyright (c) 2017, Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 var fash = require('../lib');
-var fs = require('fs');
 var Logger = require('bunyan');
+var os = require('os');
+var path = require('path');
 var restify = require('restify');
 var verror = require('verror');
 
@@ -28,8 +29,7 @@ var LVL_CFG = {
     valueEncoding: 'json'
 };
 
-var DB_LOCATION = process.env.DB_LOCATION || '/var/tmp/fash-db';
-var FASH_BACKEND = process.env.FASH_BACKEND || fash.BACKEND.LEVEL_DB;
+var DB_LOCATION = process.env.DB_LOCATION || path.join(os.tmpdir(), 'fash-db');
 
 var RING = fash.load({
     log: LOG,
@@ -43,7 +43,7 @@ var RING = fash.load({
 });
 
 var server = restify.createServer();
-server.use(restify.bodyParser());
+server.use(restify.plugins.bodyParser());
 server.post('/hash', function (req, res, next) {
     RING.getNode(req.params.key, function (err, val) {
         if (err) {
